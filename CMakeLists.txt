@@ -110,6 +110,7 @@ set(SOURCES
     src/connection_pool.c
     src/curl.c
     src/devices/xreal.c
+    src/devices/rokid_calibration.c
     src/devices.c
     src/driver.c
     src/epoch.c

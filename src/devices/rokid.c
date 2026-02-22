@@ -4,6 +4,7 @@
 #include "imu.h"
 #include "logging.h"
 #include "outputs.h"
+#include "devices/rokid_calibration.h"
 #include "runtime_context.h"
 #include "sdks/rokid.h"
 #include "strings.h"
@@ -71,6 +72,9 @@ static bool sbs_mode_enabled = false;
 static bool hard_connected = false;
 // software connection - we're actively in communication, holding open a connection
 static bool soft_connected = false;
+
+static rokid_calibration_type rokid_cal;
+static bool rokid_cal_initialized = false;
 
 static void cleanup() {
     if (event_instance && event_handle) {
@@ -188,6 +192,12 @@ static int imu_counter = 0;
 void rokid_block_on_device() {
     device_properties_type* device = device_checkout();
     if (device != NULL) {
+        if (!rokid_cal_initialized || !rokid_cal.is_calibrated) {
+            rokid_calibration_init(&rokid_cal, event_instance, event_handle,
+                                   adjustment_quat);
+            rokid_cal_initialized = true;
+        }
+
         struct EventData ed;
         while (soft_connected) {
             if (GlassWaitEvent(event_instance, event_handle, &ed, 1000)) {
@@ -210,8 +220,12 @@ void rokid_block_on_device() {
                     handle_display_mode(device, GetDisplayMode(control_instance));
                 }
 
+                uint64_t now_ms = rokid_cal_get_millis();
+                imu_quat_type corrected_quat =
+                    rokid_calibration_apply(&rokid_cal, nwu_quat, now_ms);
+
                 imu_pose_type pose = (imu_pose_type){0};
-                pose.orientation = nwu_quat;
+                pose.orientation = corrected_quat;
                 pose.has_orientation = true;
                 pose.timestamp_ms = timestamp;
                 connection_pool_ingest_pose(ROKID_DRIVER_ID, pose);
@@ -247,3 +261,7 @@ const device_driver_type rokid_driver = {
     .is_connected_func                  = rokid_is_connected,
     .disconnect_func                    = rokid_disconnect
 };
+
+void rokid_trigger_recalibration() {
+    rokid_calibration_invalidate(&rokid_cal);
+}

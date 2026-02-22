@@ -5,6 +5,7 @@
 #include "devices/viture.h"
 #include "devices/xreal.h"
 #include "connection_pool.h"
+#include "devices/rokid_calibration.h"
 #include "files.h"
 #include "imu.h"
 #include "ipc.h"
@@ -71,6 +72,10 @@ void reset_calibration(bool reset_device) {
     captured_reference_pose=false;
     control_flags->recalibrate=false;
     state()->calibration_state = CALIBRATING;
+
+#ifdef LIBGLASSSDK_SUPPORTED
+    rokid_trigger_recalibration();
+#endif
 
     if (reset_device && is_driver_connected()) {
         if (config()->debug_device) log_debug("reset_calibration, connection_pool_disconnect_all(true)\n");
